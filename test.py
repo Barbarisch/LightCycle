@@ -2,18 +2,44 @@ from Tkinter import *
 from tkColorChooser import askcolor
 import socket
 import threading
+import struct
+from threading import Thread
+import time
+import random
 
 threadShutdown = False
 
 def run(theSocket):
-	message = "test message"
+	chan = 0
+	comm = 0
+	length = 0
+	pixels = []
+	numPixels = 25
 	
 	while threadShutdown is False:
+		pixels = []
+		for idx in range(numPixels):
+			pixel = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+			#pixel = (255,0,0)
+			pixels.append(pixel)
+		length = len(pixels)*3
+			
+		message = struct.pack('B', chan)
+		message += struct.pack('B', comm)
+		message += struct.pack('!H', length)
+		for pix in pixels:
+			message += struct.pack('B', pix[0])
+			message += struct.pack('B', pix[1])
+			message += struct.pack('B', pix[2])
 	
 		try:
 			theSocket.sendall(message)
+			time.sleep(1) #TODO make this framerate
 		except:
+			print "Error in sending"
 			break
+			
+	print "thread shutdown"
 			
 def test():
 	print "testing function call"
@@ -53,6 +79,9 @@ def keypressEvent(event):
 			
 class gui:
 	def __init__(self):
+		self.theSocket = None
+		self.theThread = None
+		
 		self.master = Tk()
 		self.master.minsize(width=400, height=200)
 		
@@ -65,20 +94,28 @@ class gui:
 		self.brightnessSlider = Scale(self.master, from_=0, to=100, length=200, tickinterval=10, orient=HORIZONTAL)
 		self.brightnessSlider.set(50)
 		self.brightnessSlider.pack()
+		
+		var = StringVar(self.master)
+		var.set("1")
+		self.optionMenu = OptionMenu(self.master, var, "1","2","3","4","5","6","7","8")
+		self.optionMenu.pack()
 
-		self.showbutton = Button(self.master, text='Show', command=lambda:show_values(self.brightnessSlider)).pack()
+		#self.showbutton = Button(self.master, text='Show', command=lambda:show_values(self.brightnessSlider)).pack()
 		self.colorbutton = Button(self.master, text='Select Color', command=getColor).pack()
 
 		self.ipTextBox = Text(self.master, height=1, width=15)
-		self.ipTextBox.insert(END, "192.168.2.52")
+		self.ipTextBox.insert(END, "192.168.120.136")
 		self.ipTextBox.pack()
 
 		self.portTextBox = Text(self.master, height=1, width=15)
-		self.portTextBox.insert(END, "7890")
+		self.portTextBox.insert(END, "22368")
 		self.portTextBox.pack()
 
 		self.connectButton = Button(self.master, text='Connect', command=self.connectAction)
 		self.connectButton.pack()
+		
+		self.testButton = Button(self.master, text='Test', command=self.runAction, state='disabled')
+		self.testButton.pack()
 
 		self.master.config(menu=self.menubar)
 
@@ -90,6 +127,7 @@ class gui:
 			print "connection passed"
 			self.connectButton['text'] = "Disconnect"
 			self.connectButton['command'] = self.disconnectAction
+			self.testButton['state'] = 'normal'
 		else:
 			print "not connected"
 			
@@ -97,14 +135,36 @@ class gui:
 		disconnect(self.theSocket)
 		self.connectButton['text'] = "Connect"
 		self.connectButton['command'] = self.connectAction
+		self.testButton['state'] = 'disabled'
+		
+	def runAction(self):
+		global threadShutdown
+		
+		if self.testButton['text'] == "Test":
+			threadShutdown = False
+			self.theThread = Thread(target=run, args=(self.theSocket,))
+			self.theThread.start()
+			self.testButton['text'] = "Stop"
+		else:
+			if self.theThread is not None:
+				threadShutdown = True
+				self.theThread.join()
+			self.testButton['text'] = "Test"
+		
+	def cleanup(self):
+		global threadShutdown
+		
+		if self.theThread is not None:
+			threadShutdown = True
+			self.theThread.join()
+	
+		if self.theSocket is not None:
+			self.theSocket.close()
 
 def main():
-	global theSocket
 	program = gui()
 	mainloop()
-	
-	if theSocket is not None:
-		theSocket.close()
+	program.cleanup()
 
 if __name__ == "__main__":
 	main()
