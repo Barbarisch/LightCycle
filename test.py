@@ -8,12 +8,17 @@ import time
 import random
 import math
 from collections import deque
+import argparse
+import signal
 
 #TODO figure out json for brightness control in fadecandy extension to OPC
 
 threadShutdown = False
 startingColor = (255,255,255)
 framerate = 30
+numPixels = 80.0 #64.0
+mode = "screensaver"
+numChannels = 1
 
 def cos(x, offset=0, period=1, minn=0, maxx=1):
     """A cosine curve scaled to fit in a 0-1 range and 0-1 domain by default.
@@ -73,42 +78,51 @@ def shiftFrameCreate(numPixels, startPixel):
 def run(theSocket):
 	global startingColor
 	global framerate
+	global numPixels
+	global numChannels
+	global mode
 
 	chan = 0
 	comm = 0
 	length = 0
 	origPixels = []
 	pixels = []
-	numPixels = 64.0
+	#numPixels = 64.0
 	
 	start_time = time.time()
 	
 	#initial led frame
-	origPixels = defaultFrameCreate(numPixels, startingColor)
-	#origPixels = shiftFrameCreate(numPixels, startingColor)
+	if mode == "screensaver":
+		origPixels = shiftFrameCreate(numPixels, startingColor)
+	else:
+		origPixels = defaultFrameCreate(numPixels, startingColor)
 	
 	pixels = origPixels
 	while threadShutdown is False:
-		length = len(origPixels)*3
-			
-		message = struct.pack('B', chan)
-		message += struct.pack('B', comm)
-		message += struct.pack('!H', length)
-		for pix in pixels:
-			message += struct.pack('B', pix[0])
-			message += struct.pack('B', pix[1])
-			message += struct.pack('B', pix[2])
-	
-		try:
-			theSocket.sendall(message)
-			time.sleep(1.0/framerate)
-		except:
-			print "Error in sending"
-			break
+		for c in range(numChannels):
+			chan = c
+			length = len(origPixels)*3
+				
+			message = struct.pack('B', chan)
+			message += struct.pack('B', comm)
+			message += struct.pack('!H', length)
+			for pix in pixels:
+				message += struct.pack('B', pix[0])
+				message += struct.pack('B', pix[1])
+				message += struct.pack('B', pix[2])
+		
+			try:
+				theSocket.sendall(message)
+				time.sleep(1.0/framerate)
+			except:
+				print "Error in sending"
+				break
 			
 		#update pixel
-		#pixels = shift(pixels)
-		pixels = fade(origPixels, start_time)
+		if mode == "screensaver":
+			pixels = shift(pixels)
+		else:
+			pixels = fade(origPixels, start_time)
 		
 			
 	print "thread shutdown"
@@ -141,9 +155,11 @@ def keypressEvent(event):
 		print "testing", x
 		if x == 15: #ctr-O
 			test()
+		else:
+			print "testing:", x
 			
 class gui:
-	def __init__(self):
+	def __init__(self, ip="192.168.120.136", port="22368"):
 		self.theSocket = None
 		self.theThread = None
 		
@@ -154,7 +170,7 @@ class gui:
 
 		self.filemenu = Menu(self.menubar, tearoff=0)
 		self.filemenu.add_command(label="Open        Ctl-O", command=test)
-		self.filemenu.add_command(label="Connect     Ctl-N", command=test)
+		self.filemenu.add_command(label="Connect     Ctl-N", command=self.connectAction)
 		self.menubar.add_cascade(label="File", menu=self.filemenu)
 
 		#self.brightnessSlider = Scale(self.master, from_=0, to=100, length=200, tickinterval=10, orient=HORIZONTAL)
@@ -175,11 +191,11 @@ class gui:
 		self.colorbutton.pack()
 
 		self.ipTextBox = Text(self.master, height=1, width=15)
-		self.ipTextBox.insert(END, "192.168.120.136")
+		self.ipTextBox.insert(END, ip)
 		self.ipTextBox.pack()
 
 		self.portTextBox = Text(self.master, height=1, width=15)
-		self.portTextBox.insert(END, "22368")
+		self.portTextBox.insert(END, port)
 		self.portTextBox.pack()
 
 		self.connectButton = Button(self.master, text='Connect', command=self.connectAction)
@@ -240,11 +256,94 @@ class gui:
 	
 		if self.theSocket is not None:
 			self.theSocket.close()
+			
+class nongui:
+	def __init__(self, ip="127.0.0.1", port=22368):
+		self.ip = ip
+		self.port = port
+		self.theSocket = None
+		self.theThread = None
+	
+	def start(self):
+		self.theSocket = connect(self.ip, self.port)
+		
+		if self.theSocket is not None:
+			threadShutdown = False
+			self.theThread = Thread(target=run, args=(self.theSocket,))
+			self.theThread.start()
+		else:
+			if self.theThread is not None:
+				threadShutdown = True
+				self.theThread.join()
+	
+	def mainloop(self):
+		global threadShutdown
+		
+		while threadShutdown is False:
+			None
+	
+	def cleanup(self):
+		print "HERE!!!!!"
+		global threadShutdown
+		
+		if self.theThread is not None:
+			threadShutdown = True
+			self.theThread.join()
+	
+		if self.theSocket is not None:
+			self.theSocket.close()
+			
+def selectColor(color):
+	pixel = (255, 255, 255)
+	
+	color = color.lower()
+	
+	if color == "red":
+		pixel = (255, 0, 0)
+	elif color == "green":
+		pixel = (0, 255, 0)
+	elif color == "blue":
+		pixel = (0, 0, 255)
+	elif color == "white":
+		pixel = (255, 255, 255)
 
+	return pixel
+
+def signalCleanup(signum, frame):
+	global threadShutdown
+	threadShutdown = True
+	
 def main():
-	program = gui()
-	mainloop()
-	program.cleanup()
+	global startingColor
+	global framerate
+	global mode
+	global program
+
+	parser = argparse.ArgumentParser()
+	parser.add_argument("-g", "--gui", action='store_true', help="enable the GUI")
+	parser.add_argument("-v", "--verbosity", type=int, choices=[0, 1, 2], help="increase output verbosity")
+	parser.add_argument("-c", "--color", default="white", help="select color to start")
+	parser.add_argument("-f", "--framerate", default=framerate, help="starting framerate")
+	parser.add_argument("-m", "--mode", default="screensaver", help="animation mode (i.e screensaver)")
+	parser.add_argument("-i", "--ip", default="127.0.0.1", help="ip address of OPC server")
+	parser.add_argument("-p", "--port", type=int, default=22368, help="port number for OPC server")
+	
+	args = parser.parse_args()
+	
+	startingColor = selectColor(args.color)
+	mode = args.mode
+	
+	if args.gui is True:
+		program = gui()
+		mainloop()
+		program.cleanup()
+	else:
+		signal.signal(signal.SIGINT, signalCleanup)
+		program = nongui(args.ip, args.port)
+		program.start()
+		program.mainloop()
+		program.cleanup()
+		
 
 if __name__ == "__main__":
 	main()
