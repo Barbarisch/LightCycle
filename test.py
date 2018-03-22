@@ -13,6 +13,7 @@ from collections import deque
 
 threadShutdown = False
 startingColor = (255,255,255)
+framerate = 30
 
 def cos(x, offset=0, period=1, minn=0, maxx=1):
     """A cosine curve scaled to fit in a 0-1 range and 0-1 domain by default.
@@ -71,6 +72,7 @@ def shiftFrameCreate(numPixels, startPixel):
 
 def run(theSocket):
 	global startingColor
+	global framerate
 
 	chan = 0
 	comm = 0
@@ -99,7 +101,7 @@ def run(theSocket):
 	
 		try:
 			theSocket.sendall(message)
-			time.sleep(.1) #TODO make this framerate
+			time.sleep(1.0/framerate)
 		except:
 			print "Error in sending"
 			break
@@ -113,9 +115,6 @@ def run(theSocket):
 			
 def test():
 	print "testing function call"
-
-#def show_values(w1):
-#	print (w1.get())
 	
 def connect(ip, port):
 	# Create a TCP/IP socket
@@ -161,6 +160,10 @@ class gui:
 		#self.brightnessSlider = Scale(self.master, from_=0, to=100, length=200, tickinterval=10, orient=HORIZONTAL)
 		#self.brightnessSlider.set(50)
 		#self.brightnessSlider.pack()
+		
+		self.framerateSlider = Scale(self.master, from_=0, to=60, length=200, tickinterval=5, orient=HORIZONTAL, command=self.framerateAction)
+		self.framerateSlider.set(30)
+		self.framerateSlider.pack()
 		
 		var = StringVar(self.master)
 		var.set("1")
@@ -223,6 +226,10 @@ class gui:
 		global startingColor
 		startingColor, colorString = askcolor(parent=self.master)
 		print startingColor, colorString
+	
+	def framerateAction(self, event):
+		global framerate
+		framerate = self.framerateSlider.get()
 	
 	def cleanup(self):
 		global threadShutdown
