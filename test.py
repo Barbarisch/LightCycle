@@ -6,23 +6,88 @@ import struct
 from threading import Thread
 import time
 import random
+import math
+from collections import deque
+
+#TODO figure out json for brightness control in fadecandy extension to OPC
 
 threadShutdown = False
+startingColor = (255,255,255)
+
+def cos(x, offset=0, period=1, minn=0, maxx=1):
+    """A cosine curve scaled to fit in a 0-1 range and 0-1 domain by default.
+
+    offset: how much to slide the curve across the domain (should be 0-1)
+    period: the length of one wave
+    minn, maxx: the output range
+
+    """
+    value = math.cos((x/period - offset) * math.pi * 2) / 2 + 0.5
+    return value*(maxx-minn) + minn
+	
+def fade(pixels, start_time):
+	t = time.time() - start_time
+	newPixels = []
+	for idx in range(len(pixels)):
+		r = cos(.1, offset=t/8, period=1) * pixels[idx][0]
+		g = cos(.1, offset=t/8, period=1) * pixels[idx][1]
+		b = cos(.1, offset=t/8, period=1) * pixels[idx][2]
+	
+		#pixel = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+		#pixel = (255,0,0)
+		pixel = (r, g, b)
+		newPixels.append(pixel)
+		
+	return newPixels
+	
+def shift(pixels):
+	tempPixels = deque(pixels)
+	tempPixels.rotate(1)
+	return list(tempPixels)
+
+def defaultFrameCreate(numPixels, startPixel):
+	pixels = []
+	for idx in range(int(numPixels)):
+		pixels.append(startPixel)
+		
+	return pixels
+	
+def shiftFrameCreate(numPixels, startPixel):
+	pixels = []
+	for idx in range(int(numPixels)):
+		val = idx/numPixels
+		if val < .5:
+			val = 0.5
+		
+		r = cos(val, offset=0, period=1) * startPixel[0]
+		g = cos(val, offset=0, period=1) * startPixel[1]
+		b = cos(val, offset=0, period=1) * startPixel[2]
+	
+		#pixel = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+		pixel = (r, g, b)
+		pixels.append(pixel)
+		
+	return pixels
 
 def run(theSocket):
+	global startingColor
+
 	chan = 0
 	comm = 0
 	length = 0
+	origPixels = []
 	pixels = []
-	numPixels = 25
+	numPixels = 64.0
 	
+	start_time = time.time()
+	
+	#initial led frame
+	origPixels = defaultFrameCreate(numPixels, startingColor)
+	#origPixels = shiftFrameCreate(numPixels, startingColor)
+	
+	pixels = origPixels
 	while threadShutdown is False:
-		pixels = []
-		for idx in range(numPixels):
-			pixel = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
-			#pixel = (255,0,0)
-			pixels.append(pixel)
-		length = len(pixels)*3
+		length = len(origPixels)*3
 			
 		message = struct.pack('B', chan)
 		message += struct.pack('B', comm)
@@ -34,22 +99,23 @@ def run(theSocket):
 	
 		try:
 			theSocket.sendall(message)
-			time.sleep(1) #TODO make this framerate
+			time.sleep(.1) #TODO make this framerate
 		except:
 			print "Error in sending"
 			break
+			
+		#update pixel
+		#pixels = shift(pixels)
+		pixels = fade(origPixels, start_time)
+		
 			
 	print "thread shutdown"
 			
 def test():
 	print "testing function call"
-             
-def getColor():
-	color = askcolor() 
-	print 
 
-def show_values(w1):
-	print (w1.get())
+#def show_values(w1):
+#	print (w1.get())
 	
 def connect(ip, port):
 	# Create a TCP/IP socket
@@ -88,12 +154,13 @@ class gui:
 		self.menubar = Menu(self.master)
 
 		self.filemenu = Menu(self.menubar, tearoff=0)
-		self.filemenu.add_command(label="Open    Ctl-O", command=test)
+		self.filemenu.add_command(label="Open        Ctl-O", command=test)
+		self.filemenu.add_command(label="Connect     Ctl-N", command=test)
 		self.menubar.add_cascade(label="File", menu=self.filemenu)
 
-		self.brightnessSlider = Scale(self.master, from_=0, to=100, length=200, tickinterval=10, orient=HORIZONTAL)
-		self.brightnessSlider.set(50)
-		self.brightnessSlider.pack()
+		#self.brightnessSlider = Scale(self.master, from_=0, to=100, length=200, tickinterval=10, orient=HORIZONTAL)
+		#self.brightnessSlider.set(50)
+		#self.brightnessSlider.pack()
 		
 		var = StringVar(self.master)
 		var.set("1")
@@ -101,7 +168,8 @@ class gui:
 		self.optionMenu.pack()
 
 		#self.showbutton = Button(self.master, text='Show', command=lambda:show_values(self.brightnessSlider)).pack()
-		self.colorbutton = Button(self.master, text='Select Color', command=getColor).pack()
+		self.colorbutton = Button(self.master, text='Select Color', command=self.colorAction)
+		self.colorbutton.pack()
 
 		self.ipTextBox = Text(self.master, height=1, width=15)
 		self.ipTextBox.insert(END, "192.168.120.136")
@@ -150,7 +218,12 @@ class gui:
 				threadShutdown = True
 				self.theThread.join()
 			self.testButton['text'] = "Test"
-		
+	
+	def colorAction(self):
+		global startingColor
+		startingColor, colorString = askcolor(parent=self.master)
+		print startingColor, colorString
+	
 	def cleanup(self):
 		global threadShutdown
 		
