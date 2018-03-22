@@ -283,7 +283,6 @@ class nongui:
 			None
 	
 	def cleanup(self):
-		print "HERE!!!!!"
 		global threadShutdown
 		
 		if self.theThread is not None:
