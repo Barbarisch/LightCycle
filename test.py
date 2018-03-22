@@ -305,6 +305,14 @@ def selectColor(color):
 		pixel = (0, 0, 255)
 	elif color == "white":
 		pixel = (255, 255, 255)
+	elif color == "orange":
+		pixel = (255,165,0)
+	elif color == "yellow":
+		pixel = (255, 255, 0)
+	elif color == "purple":
+		pixel = (160,32,240)
+	elif color == "black":
+		pixel = (0,0,0)
 
 	return pixel
 
