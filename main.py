@@ -65,11 +65,26 @@ def shift(pixels):
 	tempPixels = deque(pixels)
 	tempPixels.rotate(1)
 	return list(tempPixels)
+	
+def fillup(pixels):
+	tempPixels = deque(pixels)
+	tempPixels.rotate(1)
+	tempPixels = list(tempPixels)
+	tempPixels[0] = tempPixels[1]
+	return tempPixels
 
 def defaultFrameCreate(numPixels, startPixel):
 	pixels = []
 	for idx in range(int(numPixels)):
 		pixels.append(startPixel)
+		
+	return pixels
+	
+def fillupFrameCreate(numPixels, startPixel):
+	pixels = []
+	pixels.append(startPixel)
+	for idx in range(int(numPixels)-1):
+		pixels.append((0,0,0))
 		
 	return pixels
 	
@@ -110,6 +125,8 @@ def run(theSocket):
 	#initial led frame
 	if mode == "screensaver":
 		origPixels = shiftFrameCreate(numPixels, startingColor)
+	elif mode == "fill":
+		origPixels = fillupFrameCreate(numPixels, startingColor)
 	else:
 		origPixels = defaultFrameCreate(numPixels, startingColor)
 	
@@ -146,11 +163,12 @@ def run(theSocket):
 				pixels = shift(pixels)
 			elif mode == "rainbow":
 				pixels, angle = rainbowCycle(numPixels, angle)
+			elif mode == "fill":
+				pixels = fillup(pixels)
 			else:
 				pixels = fade(origPixels, start_time)
 			
 			last_time = time.time()
-		
 			
 	print "thread shutdown"
 			
