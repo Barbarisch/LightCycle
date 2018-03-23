@@ -184,7 +184,12 @@ class gui:
 		self.theThread = None
 		
 		self.master = Tk()
+		self.master.title("LightCycle")
 		self.master.minsize(width=400, height=200)
+		try:
+			self.master.iconbitmap('lightcycle_16x16.ico')
+		except:
+			pass
 		
 		self.menubar = Menu(self.master)
 
