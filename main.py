@@ -59,7 +59,7 @@ def rainbowCycle(numPixels, angle):
 	if newAngle > 359:
 		newAngle = 0
 	
-	return newPixels, newAngle	
+	return newPixels, newAngle
 	
 def shift(pixels):
 	tempPixels = deque(pixels)
@@ -72,7 +72,88 @@ def fillup(pixels):
 	tempPixels = list(tempPixels)
 	tempPixels[0] = tempPixels[1]
 	return tempPixels
+	
+def testShift(pixels, offset):
+	newPixels = []
+	numPixels = len(pixels) * 1.0
+	for idx in range(int(numPixels)):
+		val = idx/numPixels
+		if val < .5:
+			r = 0
+			g = 0
+			b = 0
+		else:
+			r = round(cos(val, offset=offset/numPixels, period=1) * pixels[idx][0])
+			g = round(cos(val, offset=offset/numPixels, period=1) * pixels[idx][1])
+			b = round(cos(val, offset=offset/numPixels, period=1) * pixels[idx][2])
+	
+		#pixel = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+		pixel = (r, g, b)
+		newPixels.append(pixel)
+		
+	return newPixels
 
+def rainbowShift(pixels, angle=None):
+	#find leading pixel
+	retPixel = None
+	for x in range(len(pixels)):
+		num1 = 0
+		num2 = 0
+		
+		if x+1 >= len(pixels):
+			num1 = pixels[x][0]+pixels[x][1]+pixels[x][2]
+			num2 = pixels[0][0]+pixels[0][1]+pixels[0][2]
+		else:
+			num1 = pixels[x][0]+pixels[x][1]+pixels[x][2]
+			num2 = pixels[x+1][0]+pixels[x+1][1]+pixels[x+1][2]
+			
+		if int(num2) == 0 and int(num1) > 0:
+			retPixel = (pixels[x][0], pixels[x][1], pixels[x][2])
+			break
+		
+	if retPixel is None:
+		print "did not find leading pixel"
+		return
+	
+	if angle is None:
+		nextAngle = colorUtils.getCurrentAngle(retPixel)+1
+	else:
+		nextAngle = angle+1
+		
+	nextPixel = colorUtils.getRainbow(nextAngle)
+	
+	print angle, nextAngle, retPixel, nextPixel
+	
+	rdiff = abs(retPixel[0]-nextPixel[0])
+	gdiff = abs(retPixel[1]-nextPixel[1])
+	bdiff = abs(retPixel[2]-nextPixel[2])
+	
+	newPixels = []
+	for pix in pixels:
+		rnew = 0
+		gnew = 0
+		bnew = 0
+	
+		if (pix[0]+pix[1]+pix[2]) > 0:
+			rnew = pix[0]+rdiff
+			gnew = pix[1]+gdiff
+			bnew = pix[2]+bdiff
+			
+			if rnew > 255:
+				rnew = rnew - 255
+				
+			if gnew > 255:
+				gnew = gnew - 255
+				
+			if bnew > 255:
+				bnew = bnew - 255
+				
+			#print "newpixel", rdiff, gdiff, bdiff
+			
+		newPixels.append((rnew, gnew, bnew))
+	
+	return newPixels, nextAngle
+	
 def defaultFrameCreate(numPixels, startPixel):
 	pixels = []
 	for idx in range(int(numPixels)):
@@ -95,9 +176,9 @@ def shiftFrameCreate(numPixels, startPixel):
 		if val < .5:
 			val = 0.5
 		
-		r = cos(val, offset=0, period=1) * startPixel[0]
-		g = cos(val, offset=0, period=1) * startPixel[1]
-		b = cos(val, offset=0, period=1) * startPixel[2]
+		r = round(cos(val, offset=0, period=1) * startPixel[0])
+		g = round(cos(val, offset=0, period=1) * startPixel[1])
+		b = round(cos(val, offset=0, period=1) * startPixel[2])
 	
 		#pixel = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
 		pixel = (r, g, b)
@@ -121,19 +202,24 @@ def run(theSocket):
 	#numPixels = 64.0
 	
 	start_time = time.time()
+	angle = 0
 	
 	#initial led frame
 	if mode == "screensaver":
-		origPixels = shiftFrameCreate(numPixels, startingColor)
+		origPixels = defaultFrameCreate(numPixels, startingColor)
+		angle = colorUtils.getCurrentAngle(origPixels[len(origPixels)-1])
 	elif mode == "fill":
 		origPixels = fillupFrameCreate(numPixels, startingColor)
+	elif mode == "shift":
+		origPixels = shiftFrameCreate(numPixels, startingColor)
+		origPixels, angle = rainbowShift(origPixels, None)
 	else:
 		origPixels = defaultFrameCreate(numPixels, startingColor)
 	
 	pixels = origPixels
-	angle = 0
 	last_time = time.time()
 	modspeed = ((1.0/(speed))*framerate)
+	test = 0
 	
 	while threadShutdown is False:
 		for c in range(numChannels):
@@ -160,11 +246,19 @@ def run(theSocket):
 		diff_time = current_time - last_time
 		if diff_time > modspeed: #speed modifier
 			if mode == "screensaver":
-				pixels = shift(pixels)
+				#pixels = shift(pixels)
+				origPixels, angle = rainbowCycle(numPixels, angle)
+				pixels = testShift(origPixels, test)
+				test = test + 1
+				if test > numPixels:
+					test = 0
 			elif mode == "rainbow":
 				pixels, angle = rainbowCycle(numPixels, angle)
 			elif mode == "fill":
 				pixels = fillup(pixels)
+			elif mode == "shift":
+				pixels = shift(pixels)
+				pixels, angle = rainbowShift(pixels, angle)
 			else:
 				pixels = fade(origPixels, start_time)
 			

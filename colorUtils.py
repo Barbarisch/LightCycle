@@ -84,3 +84,17 @@ def getRainbow2(angle):
 		
 	pixel = (red, green, blue)
 	return pixel
+	
+def getCurrentAngle(pixel):
+	ret = 0
+	
+	for angle in range(360):
+		r = rainbowSequence[(angle+120)%360]
+		g = rainbowSequence[angle]
+		b = rainbowSequence[(angle+240)%360]
+		
+		if r == pixel[0] and g == pixel[1] and b == pixel[2] and angle > 0:
+			ret = angle
+			break
+
+	return ret
