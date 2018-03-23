@@ -19,6 +19,7 @@ framerate = 30
 numPixels = 80.0 #64.0
 mode = "screensaver"
 numChannels = 1
+speed = 10
 
 def cos(x, offset=0, period=1, minn=0, maxx=1):
     """A cosine curve scaled to fit in a 0-1 range and 0-1 domain by default.
@@ -47,9 +48,6 @@ def fade(pixels, start_time):
 	return newPixels
 	
 def rainbowCycle(numPixels, angle):
-	#r = lights[(angle+120)%360]
-	#g = lights[angle]
-	#b = lights[(angle+240)%360]
 	#pixel = colorUtils.getRainbow(angle)#(r, g, b)
 	pixel = colorUtils.getRainbow2(angle)#(r, g, b)
 	
@@ -98,6 +96,7 @@ def run(theSocket):
 	global numPixels
 	global numChannels
 	global mode
+	global speed
 
 	chan = 0
 	comm = 0
@@ -116,6 +115,9 @@ def run(theSocket):
 	
 	pixels = origPixels
 	angle = 0
+	last_time = time.time()
+	modspeed = ((1.0/(speed*5))*5)
+	
 	while threadShutdown is False:
 		for c in range(numChannels):
 			chan = c
@@ -137,12 +139,17 @@ def run(theSocket):
 				break
 			
 		#update pixel
-		if mode == "screensaver":
-			pixels = shift(pixels)
-		elif mode == "test":
-			pixels, angle = rainbowCycle(numPixels, angle)
-		else:
-			pixels = fade(origPixels, start_time)
+		current_time = time.time()
+		diff_time = current_time - last_time
+		if diff_time > modspeed: #speed modifier
+			if mode == "screensaver":
+				pixels = shift(pixels)
+			elif mode == "rainbow":
+				pixels, angle = rainbowCycle(numPixels, angle)
+			else:
+				pixels = fade(origPixels, start_time)
+			
+			last_time = time.time()
 		
 			
 	print "thread shutdown"
@@ -172,7 +179,7 @@ def keypressEvent(event):
 	x = event.char
 	if len(x) > 0:
 		x = ord(x)
-		print "testing", x
+		#print "testing", x
 		if x == 15: #ctr-O
 			test()
 		else:
@@ -350,6 +357,7 @@ def main():
 	global framerate
 	global mode
 	global program
+	global speed
 
 	parser = argparse.ArgumentParser()
 	parser.add_argument("-g", "--gui", action='store_true', help="enable the GUI")
@@ -359,11 +367,13 @@ def main():
 	parser.add_argument("-m", "--mode", default="screensaver", help="animation mode (i.e screensaver)")
 	parser.add_argument("-i", "--ip", default="127.0.0.1", help="ip address of OPC server")
 	parser.add_argument("-p", "--port", type=int, default=22368, help="port number for OPC server")
+	parser.add_argument("-s", "--speed", type=int, default=10, help="animation speed setting")
 	
 	args = parser.parse_args()
 	
 	startingColor = selectColor(args.color)
 	mode = args.mode
+	speed = args.speed
 	
 	if args.gui is True:
 		program = gui(ip=args.ip, port=str(args.port))
