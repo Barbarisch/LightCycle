@@ -133,7 +133,7 @@ def run(theSocket):
 	pixels = origPixels
 	angle = 0
 	last_time = time.time()
-	modspeed = ((1.0/(speed*5))*5)
+	modspeed = ((1.0/(speed))*framerate)
 	
 	while threadShutdown is False:
 		for c in range(numChannels):
