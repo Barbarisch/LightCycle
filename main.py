@@ -46,7 +46,7 @@ def fade(pixels, start_time):
 		
 	return newPixels
 	
-def testAlgorithm(numPixels, angle):
+def rainbowCycle(numPixels, angle):
 	#r = lights[(angle+120)%360]
 	#g = lights[angle]
 	#b = lights[(angle+240)%360]
@@ -140,7 +140,7 @@ def run(theSocket):
 		if mode == "screensaver":
 			pixels = shift(pixels)
 		elif mode == "test":
-			pixels, angle = testAlgorithm(numPixels, angle)
+			pixels, angle = rainbowCycle(numPixels, angle)
 		else:
 			pixels = fade(origPixels, start_time)
 		
@@ -179,7 +179,7 @@ def keypressEvent(event):
 			print "testing:", x
 			
 class gui:
-	def __init__(self, ip="192.168.120.136", port="22368"):
+	def __init__(self, ip="127.0.0.1", port="22368"):
 		self.theSocket = None
 		self.theThread = None
 		
@@ -366,7 +366,7 @@ def main():
 	mode = args.mode
 	
 	if args.gui is True:
-		program = gui()
+		program = gui(ip=args.ip, port=str(args.port))
 		mainloop()
 		program.cleanup()
 	else:
