@@ -11,7 +11,7 @@ from collections import deque
 import argparse
 import signal
 
-#TODO figure out json for brightness control in fadecandy extension to OPC
+import colorUtils
 
 threadShutdown = False
 startingColor = (255,255,255)
@@ -19,21 +19,6 @@ framerate = 30
 numPixels = 80.0 #64.0
 mode = "screensaver"
 numChannels = 1
-
-def remap(x, oldmin, oldmax, newmin, newmax):
-    """Remap the float x from the range oldmin-oldmax to the range newmin-newmax
-
-    Does not clamp values that exceed min or max.
-    For example, to make a sine wave that goes between 0 and 256:
-        remap(math.sin(time.time()), -1, 1, 0, 256)
-
-    """
-    zero_to_one = (x-oldmin) / (oldmax-oldmin)
-    return zero_to_one*(newmax-newmin) + newmin
-
-def clamp(x, minn, maxx):
-    """Restrict the float x to the range minn-maxx."""
-    return max(minn, min(maxx, x))
 
 def cos(x, offset=0, period=1, minn=0, maxx=1):
     """A cosine curve scaled to fit in a 0-1 range and 0-1 domain by default.
@@ -53,7 +38,7 @@ def fade(pixels, start_time):
 		r = cos(.1, offset=t/8, period=1) * pixels[idx][0]
 		g = cos(.1, offset=t/8, period=1) * pixels[idx][1]
 		b = cos(.1, offset=t/8, period=1) * pixels[idx][2]
-	
+		
 		#pixel = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
 		#pixel = (255,0,0)
 		pixel = (r, g, b)
@@ -61,32 +46,22 @@ def fade(pixels, start_time):
 		
 	return newPixels
 	
-def testAlgorithm(pixels, start_time):
-	t = time.time() - start_time
+def testAlgorithm(numPixels, angle):
+	#r = lights[(angle+120)%360]
+	#g = lights[angle]
+	#b = lights[(angle+240)%360]
+	#pixel = colorUtils.getRainbow(angle)#(r, g, b)
+	pixel = colorUtils.getRainbow2(angle)#(r, g, b)
+	
 	newPixels = []
-	num = len(pixels) * 1.0
-	for idx in range(len(pixels)):
-		x, y, z = (idx, idx, idx)
-		y += cos(x + 0.2*z, offset=0, period=1, minn=0, maxx=0.6)
-		z += cos(x, offset=0, period=1, minn=0, maxx=0.3)
-		x += cos(y + z, offset=0, period=1.5, minn=0, maxx=0.2)
-	
-		#r = cos(.11, offset=t, period=1) * pixels[idx][0]
-		#g = cos(.15, offset=t, period=1) * pixels[idx][1]
-		#b = cos(.18, offset=t, period=1) * pixels[idx][2]
-		
-		r = cos(x, offset=t / 4, period=2.5, minn=0, maxx=1)
-		g = cos(y, offset=t / 4, period=2.5, minn=0, maxx=1)
-		b = cos(z, offset=t / 4, period=2.5, minn=0, maxx=1)
-		
-		#g = g * 0.6 + ((r+b) / 2) * 0.4
-	
-		#pixel = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
-		#pixel = (255,0,0)
-		pixel = (r*256, g*256, b*256)
+	for idx in range(int(numPixels)):
 		newPixels.append(pixel)
-		
-	return newPixels	
+	
+	newAngle = angle + 1
+	if newAngle > 359:
+		newAngle = 0
+	
+	return newPixels, newAngle	
 	
 def shift(pixels):
 	tempPixels = deque(pixels)
@@ -140,6 +115,7 @@ def run(theSocket):
 		origPixels = defaultFrameCreate(numPixels, startingColor)
 	
 	pixels = origPixels
+	angle = 0
 	while threadShutdown is False:
 		for c in range(numChannels):
 			chan = c
@@ -164,7 +140,7 @@ def run(theSocket):
 		if mode == "screensaver":
 			pixels = shift(pixels)
 		elif mode == "test":
-			pixels = testAlgorithm(origPixels, start_time)
+			pixels, angle = testAlgorithm(numPixels, angle)
 		else:
 			pixels = fade(origPixels, start_time)
 		
