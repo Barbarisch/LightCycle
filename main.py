@@ -185,6 +185,77 @@ def shiftFrameCreate(numPixels, startPixel):
 		
 	return pixels
 
+def fillMode(pixels, iterations, numPixels, startingColor):
+	if iterations == 0: #first iteration
+		newPixels = fillupFrameCreate(numPixels, startingColor)
+		iterations = iterations + 1
+		updatedPixels = True
+	elif iterations > numPixels: #last iteration
+		newPixels = pixels
+		updatedPixels = False
+	else:
+		newPixels = fillup(pixels)
+		updatedPixels = True
+		iterations = iterations + 1
+		
+	return newPixels, updatedPixels, iterations
+
+def fadeMode(origPixels, iterations, numPixels, startingColor, start_time):
+	if iterations == 0: #first iteration
+		initPixels = defaultFrameCreate(numPixels, startingColor)
+		pixels = origPixels
+		iterations = iterations + 1
+		updatedPixels = True
+	else:
+		initPixels = origPixels
+		pixels = fade(initPixels, start_time)
+		updatedPixels = True
+		
+	return initPixels, pixels, updatedPixels, iterations
+
+def shiftMode(pixels, direction, iterations, numPixels, startingColor, shiftnum):
+	if iterations == 0:
+		pixels = shiftFrameCreate(numPixels, startingColor)
+		iterations = iterations + 1
+		updatedPixels = True
+		if direction == "left":
+			pixels = pixels[::-1]
+	else:
+		if direction == "right":
+			pixels = shift(pixels, 1)
+		else:
+			pixels = shift(pixels, -1)
+		shiftnum = shiftnum +1
+		if shiftnum > numPixels:
+			shiftnum = 0
+		updatedPixels = True
+		
+	return pixels, updatedPixels, iterations, shiftnum
+
+def rainbowshiftMode(directions, angle, numPixels, shiftnum):
+	pixel = colorUtils.getRainbow(angle)
+	angle = angle + 1
+	if angle > 359:
+		angle = 0
+	pixels = shiftFrameCreate(numPixels, pixel)
+	if directions == "left":
+		tempNum = shiftnum - (shiftnum*2)
+	else:
+		tempNum = shiftnum
+	pixels = shift(pixels, tempNum)
+	shiftnum = shiftnum + 1
+	if shiftnum > numPixels:
+		shiftnum = 0
+	updatedPixels = True
+	
+	return pixels, angle, updatedPixels, shiftnum
+
+def rainbowMode(angle, numPixels):
+	pixels, angle = rainbowCycle(numPixels, angle)
+	updatedPixels = True
+	
+	return pixels, updatedPixels, angle
+
 def opcSend(theSocket, pixels):
 	global numChannels
 	comm = 0
@@ -213,7 +284,7 @@ def opcSend(theSocket, pixels):
 		except:
 			print "Error in sending"
 			break
-					
+				
 def run(theSocket):
 	global startingColor
 	global framerate
@@ -256,43 +327,26 @@ def run(theSocket):
 		if diff_time > modspeed: #speed modifier
 		
 			if mode == "fill":
-				if iterations == 0: #first iteration
-					pixels = fillupFrameCreate(numPixels, startingColor)
-					iterations = iterations + 1
-					updatedPixels = True
-				elif iterations > numPixels: #last iteration
-					updatedPixels = False
-				else:
-					pixels = fillup(pixels)
-					updatedPixels = True
-					iterations = iterations + 1
+				pixels, updatedPixels, iterations = fillMode(pixels, iterations, numPixels, startingColor)
 					
 			elif mode == "rainbow":
-				pixels, angle = rainbowCycle(numPixels, angle)
-				updatedPixels = True
+				pixels, updatedPixels, angle = rainbowMode(angle, numPixels)
 				
 			elif mode == "fade":
-				if iterations == 0: #first iteration
-					origPixels = defaultFrameCreate(numPixels, startingColor)
-					pixels = origPixels
-					iterations = iterations + 1
-					updatedPixels = True
-				else:
-					pixels = fade(origPixels, start_time)
-					updatedPixels = True
+				origPixels, pixels, updatedPixels, iterations = fadeMode(origPixels, iterations, numPixels, startingColor, start_time)
 					
-			elif mode == "shift":
-				if iterations == 0:
-					pixels= shiftFrameCreate(numPixels, startingColor)
-					iterations = iterations + 1
-					updatedPixels = True
-				else:
-					pixels = shift(pixels, 1)
-					shiftnum = shiftnum +1
-					if shiftnum > numPixels:
-						shiftnum = 0
-					updatedPixels = True
+			elif mode == "rshift":
+				pixels, updatedPixels, iterations, shiftnum = shiftMode(pixels, "right", iterations, numPixels, startingColor, shiftnum)
 					
+			elif mode == "lshift":
+				pixels, updatedPixels, iterations, shiftnum = shiftMode(pixels, "left", iterations, numPixels, startingColor, shiftnum)
+					
+			elif mode == "rainbow_rshift":
+				pixels, angle, updatedPixels, shiftnum = rainbowshiftMode("right", angle, numPixels, shiftnum)
+				
+			elif mode == "rainbow_lshift":
+				pixels, angle, updatedPixels, shiftnum = rainbowshiftMode("left", angle, numPixels, shiftnum)
+
 			last_time = time.time()
 		time.sleep(1.0/framerate)
 	
@@ -530,7 +584,6 @@ def main():
 		program.start()
 		program.mainloop()
 		program.cleanup()
-		
 
 if __name__ == "__main__":
 	main()
