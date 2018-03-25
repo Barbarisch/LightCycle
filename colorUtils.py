@@ -98,3 +98,8 @@ def getCurrentAngle(pixel):
 			break
 
 	return ret
+	
+def gamma(color, gamma):
+    """Apply a gamma curve to the color.  The color values should be in the range 0-1."""
+    r, g, b = color
+    return (max(r, 0) ** gamma, max(g, 0) ** gamma, max(b, 0) ** gamma)

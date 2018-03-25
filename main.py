@@ -16,9 +16,9 @@ import colorUtils
 threadShutdown = False
 startingColor = (255,255,255)
 framerate = 30
-numPixels = 80.0 #64.0
+numPixels = 64.0
 mode = "screensaver"
-numChannels = 1
+numChannels = 8
 speed = 10
 
 def cos(x, offset=0, period=1, minn=0, maxx=1):
@@ -35,16 +35,15 @@ def cos(x, offset=0, period=1, minn=0, maxx=1):
 def fade(pixels, start_time):
 	t = time.time() - start_time
 	newPixels = []
+
 	for idx in range(len(pixels)):
 		r = cos(.1, offset=t/8, period=1) * pixels[idx][0]
 		g = cos(.1, offset=t/8, period=1) * pixels[idx][1]
 		b = cos(.1, offset=t/8, period=1) * pixels[idx][2]
 		
-		#pixel = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
-		#pixel = (255,0,0)
 		pixel = (r, g, b)
 		newPixels.append(pixel)
-		
+
 	return newPixels
 	
 def rainbowCycle(numPixels, angle):
@@ -61,9 +60,9 @@ def rainbowCycle(numPixels, angle):
 	
 	return newPixels, newAngle
 	
-def shift(pixels):
+def shift(pixels, num):
 	tempPixels = deque(pixels)
-	tempPixels.rotate(1)
+	tempPixels.rotate(num)
 	return list(tempPixels)
 	
 def fillup(pixels):
@@ -186,6 +185,35 @@ def shiftFrameCreate(numPixels, startPixel):
 		
 	return pixels
 
+def opcSend(theSocket, pixels):
+	global numChannels
+	comm = 0
+
+	for c in range(numChannels):
+		chan = c
+		length = len(pixels)*3
+			
+		message = struct.pack('B', chan)
+		message += struct.pack('B', comm)
+		message += struct.pack('!H', length)
+		for pix in pixels:
+			message += struct.pack('B', pix[0])
+			message += struct.pack('B', pix[1])
+			message += struct.pack('B', pix[2])
+			
+			#testing gamma correction
+			#r1, g1, b1 = (pix[0]/255.0, pix[1]/255.0, pix[2]/255.0)
+			#r, g, b = colorUtils.gamma((r1, g1, b1), 2.5)
+			#message += struct.pack('B', r*255)
+			#message += struct.pack('B', g*255)
+			#message += struct.pack('B', b*255)
+	
+		try:
+			theSocket.sendall(message)
+		except:
+			print "Error in sending"
+			break
+					
 def run(theSocket):
 	global startingColor
 	global framerate
@@ -199,76 +227,81 @@ def run(theSocket):
 	length = 0
 	origPixels = []
 	pixels = []
-	#numPixels = 64.0
 	
 	start_time = time.time()
 	angle = 0
 	
 	#initial led frame
-	if mode == "screensaver":
+	if mode == "solid":
 		origPixels = defaultFrameCreate(numPixels, startingColor)
-		angle = colorUtils.getCurrentAngle(origPixels[len(origPixels)-1])
-	elif mode == "fill":
-		origPixels = fillupFrameCreate(numPixels, startingColor)
-	elif mode == "shift":
-		origPixels = shiftFrameCreate(numPixels, startingColor)
-		origPixels, angle = rainbowShift(origPixels, None)
 	else:
-		origPixels = defaultFrameCreate(numPixels, startingColor)
+		origPixels = defaultFrameCreate(numPixels, (0,0,0))
 	
 	pixels = origPixels
 	last_time = time.time()
 	modspeed = ((1.0/(speed))*framerate)
-	test = 0
+	shiftnum = 0
+	updatedPixels = True
+	iterations = 0
 	
 	while threadShutdown is False:
-		for c in range(numChannels):
-			chan = c
-			length = len(origPixels)*3
+	
+		if updatedPixels is True:
+			opcSend(theSocket, pixels)
+			updatedPixels = False
 				
-			message = struct.pack('B', chan)
-			message += struct.pack('B', comm)
-			message += struct.pack('!H', length)
-			for pix in pixels:
-				message += struct.pack('B', pix[0])
-				message += struct.pack('B', pix[1])
-				message += struct.pack('B', pix[2])
-		
-			try:
-				theSocket.sendall(message)
-				time.sleep(1.0/framerate)
-			except:
-				print "Error in sending"
-				break
-			
-		#update pixel
+		#update pixels
 		current_time = time.time()
 		diff_time = current_time - last_time
 		if diff_time > modspeed: #speed modifier
-			if mode == "screensaver":
-				#pixels = shift(pixels)
-				origPixels, angle = rainbowCycle(numPixels, angle)
-				pixels = testShift(origPixels, test)
-				test = test + 1
-				if test > numPixels:
-					test = 0
+		
+			if mode == "fill":
+				if iterations == 0: #first iteration
+					pixels = fillupFrameCreate(numPixels, startingColor)
+					iterations = iterations + 1
+					updatedPixels = True
+				elif iterations > numPixels: #last iteration
+					updatedPixels = False
+				else:
+					pixels = fillup(pixels)
+					updatedPixels = True
+					iterations = iterations + 1
+					
 			elif mode == "rainbow":
 				pixels, angle = rainbowCycle(numPixels, angle)
-			elif mode == "fill":
-				pixels = fillup(pixels)
+				updatedPixels = True
+				
+			elif mode == "fade":
+				if iterations == 0: #first iteration
+					origPixels = defaultFrameCreate(numPixels, startingColor)
+					pixels = origPixels
+					iterations = iterations + 1
+					updatedPixels = True
+				else:
+					pixels = fade(origPixels, start_time)
+					updatedPixels = True
+					
 			elif mode == "shift":
-				pixels = shift(pixels)
-				pixels, angle = rainbowShift(pixels, angle)
-			else:
-				pixels = fade(origPixels, start_time)
-			
+				if iterations == 0:
+					pixels= shiftFrameCreate(numPixels, startingColor)
+					iterations = iterations + 1
+					updatedPixels = True
+				else:
+					pixels = shift(pixels, 1)
+					shiftnum = shiftnum +1
+					if shiftnum > numPixels:
+						shiftnum = 0
+					updatedPixels = True
+					
 			last_time = time.time()
+		time.sleep(1.0/framerate)
+	
+	#before exit turn off LEDs
+	pixels = defaultFrameCreate(numPixels, (0,0,0))
+	opcSend(theSocket, pixels)
 			
 	print "thread shutdown"
 			
-def test():
-	print "testing function call"
-	
 def connect(ip, port):
 	# Create a TCP/IP socket
 	theSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -293,7 +326,7 @@ def keypressEvent(event):
 		x = ord(x)
 		#print "testing", x
 		if x == 15: #ctr-O
-			test()
+			None
 		else:
 			print "testing:", x
 			
@@ -313,7 +346,7 @@ class gui:
 		self.menubar = Menu(self.master)
 
 		self.filemenu = Menu(self.menubar, tearoff=0)
-		self.filemenu.add_command(label="Open        Ctl-O", command=test)
+		self.filemenu.add_command(label="Open        Ctl-O")#, command=test)
 		self.filemenu.add_command(label="Connect     Ctl-N", command=self.connectAction)
 		self.menubar.add_cascade(label="File", menu=self.filemenu)
 
