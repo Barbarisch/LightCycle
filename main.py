@@ -20,6 +20,7 @@ numPixels = 64.0
 mode = "screensaver"
 numChannels = 8
 speed = 10
+screensaver_cycle = True
 
 def cos(x, offset=0, period=1, minn=0, maxx=1):
     """A cosine curve scaled to fit in a 0-1 range and 0-1 domain by default.
@@ -292,10 +293,10 @@ def run(theSocket):
 	global numChannels
 	global mode
 	global speed
+	global screensaver_cycle
+	
+	modes = ["fill","rainbow","fade","rshift","lshift","rainbow_rshift","rainbow_lshift"]
 
-	chan = 0
-	comm = 0
-	length = 0
 	origPixels = []
 	pixels = []
 	
@@ -349,6 +350,18 @@ def run(theSocket):
 
 			last_time = time.time()
 		time.sleep(1.0/framerate)
+		
+		if screensaver_cycle is True:
+			cur_time = time.time()
+			dif = cur_time - start_time
+			if dif > 5:
+				mode = random.choice(modes)
+				start_time = cur_time
+				pixels = defaultFrameCreate(numPixels, (0,0,0))
+				updatedPixels = True
+				shiftnum = 0
+				updatedPixels = True
+				iterations = 0
 	
 	#before exit turn off LEDs
 	pixels = defaultFrameCreate(numPixels, (0,0,0))
