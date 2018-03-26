@@ -296,6 +296,7 @@ def run(theSocket):
 	global screensaver_cycle
 	
 	modes = ["fill","rainbow","fade","rshift","lshift","rainbow_rshift","rainbow_lshift"]
+	colors = ["red", "orange", "yellow", "green", "blue", "purple"]
 
 	origPixels = []
 	pixels = []
@@ -356,6 +357,7 @@ def run(theSocket):
 			dif = cur_time - start_time
 			if dif > 5:
 				mode = random.choice(modes)
+				startingColor = selectColor(random.choice(colors))
 				start_time = cur_time
 				pixels = defaultFrameCreate(numPixels, (0,0,0))
 				updatedPixels = True
