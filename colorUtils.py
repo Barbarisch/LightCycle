@@ -1,3 +1,5 @@
+import colorsys
+
 rainbowSequence = [
   0,   0,   0,   0,   0,   1,   1,   2, 
   2,   3,   4,   5,   6,   7,   8,   9, 
@@ -46,8 +48,11 @@ rainbowSequence = [
   0,   0,   0,   0,   0,   0,   0,   0 ]
   
 def getRainbow(angle):
+	#r = rainbowSequence[(angle+120)%360]
 	r = rainbowSequence[(angle+120)%360]
+	#g = rainbowSequence[angle]
 	g = rainbowSequence[angle]
+	#b = rainbowSequence[(angle+240)%360]
 	b = rainbowSequence[(angle+240)%360]
 	pixel = (r, g, b)
 	return pixel
@@ -84,7 +89,32 @@ def getRainbow2(angle):
 		
 	pixel = (red, green, blue)
 	return pixel
+
+def getRainbow3(depth):
+	maxd = 360
+	(r, g, b) = colorsys.hsv_to_rgb(float(depth) / maxd, 1.0, 1.0)
+	R, G, B = int(255 * r), int(255 * g), int(255 * b)
 	
+	return (R, G, B)
+	
+
+def getRainbow4(numPixels):
+	h = 0
+	v = 255
+	s = 240
+	
+	pixels = []
+	
+	for x in range(255):
+		h = h + 1
+		(r, g, b) = colorsys.hsv_to_rgb(h/255.0, v/255.0, s/255.0)
+		R, G, B = int(255 * r), int(255 * g), int(255 * b)
+		pixels.append((R, G, B))
+		
+	print pixels
+		
+	return pixels
+
 def getCurrentAngle(pixel):
 	ret = 0
 	

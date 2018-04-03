@@ -20,7 +20,7 @@ numPixels = 64.0
 mode = "screensaver"
 numChannels = 8
 speed = 10
-screensaver_cycle = True
+screensaver_cycle = False
 
 def cos(x, offset=0, period=1, minn=0, maxx=1):
     """A cosine curve scaled to fit in a 0-1 range and 0-1 domain by default.
@@ -256,6 +256,25 @@ def rainbowMode(angle, numPixels):
 	updatedPixels = True
 	
 	return pixels, updatedPixels, angle
+	
+def testfunc(pixels, iterations, numPixels, shiftnum):
+	direction = "right"
+	if iterations == 0:
+		pixels = []
+		pixels = colorUtils.getRainbow4(int(numPixels))
+		iterations = iterations + 1
+		updatedPixels = True
+	else:
+		if direction == "right":
+			pixels = shift(pixels, 1)
+		else:
+			pixels = shift(pixels, -1)
+		shiftnum = shiftnum +1
+		if shiftnum > numPixels:
+			shiftnum = 0
+		updatedPixels = True
+
+	return pixels, updatedPixels, iterations, shiftnum
 
 def opcSend(theSocket, pixels):
 	global numChannels
@@ -309,7 +328,7 @@ def run(theSocket):
 		origPixels = defaultFrameCreate(numPixels, startingColor)
 	else:
 		origPixels = defaultFrameCreate(numPixels, (0,0,0))
-	
+		
 	pixels = origPixels
 	last_time = time.time()
 	modspeed = ((1.0/(speed))*framerate)
@@ -348,6 +367,9 @@ def run(theSocket):
 				
 			elif mode == "rainbow_lshift":
 				pixels, angle, updatedPixels, shiftnum = rainbowshiftMode("left", angle, numPixels, shiftnum)
+			
+			elif mode == "test":
+				pixels, updatedPixels, iterations, shiftnum = testfunc(pixels, iterations, numPixels, shiftnum)
 
 			last_time = time.time()
 		time.sleep(1.0/framerate)
