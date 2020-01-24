@@ -1,5 +1,5 @@
-from Tkinter import *
-from tkColorChooser import askcolor
+from tkinter import *
+from tkinter.colorchooser import askcolor
 import socket
 import threading
 import struct
@@ -11,14 +11,18 @@ from collections import deque
 import argparse
 import signal
 
+# local imports
 import colorUtils
 
+# settings specific to my desk project
+numPixels = 64.0
+numChannels = 8
+
+# other global variables
 threadShutdown = False
 startingColor = (255,255,255)
 framerate = 30
-numPixels = 64.0
 mode = "screensaver"
-numChannels = 8
 speed = 10
 screensaver_cycle = False
 
@@ -112,7 +116,7 @@ def rainbowShift(pixels, angle=None):
 			break
 		
 	if retPixel is None:
-		print "did not find leading pixel"
+		print("did not find leading pixel")
 		return
 	
 	if angle is None:
@@ -122,7 +126,7 @@ def rainbowShift(pixels, angle=None):
 		
 	nextPixel = colorUtils.getRainbow(nextAngle)
 	
-	print angle, nextAngle, retPixel, nextPixel
+	print(angle, nextAngle, retPixel, nextPixel)
 	
 	rdiff = abs(retPixel[0]-nextPixel[0])
 	gdiff = abs(retPixel[1]-nextPixel[1])
@@ -148,7 +152,7 @@ def rainbowShift(pixels, angle=None):
 			if bnew > 255:
 				bnew = bnew - 255
 				
-			#print "newpixel", rdiff, gdiff, bdiff
+			#print("newpixel", rdiff, gdiff, bdiff)
 			
 		newPixels.append((rnew, gnew, bnew))
 	
@@ -302,7 +306,7 @@ def opcSend(theSocket, pixels):
 		try:
 			theSocket.sendall(message)
 		except:
-			print "Error in sending"
+			print("Error in sending")
 			break
 				
 def run(theSocket):
@@ -391,7 +395,7 @@ def run(theSocket):
 	pixels = defaultFrameCreate(numPixels, (0,0,0))
 	opcSend(theSocket, pixels)
 			
-	print "thread shutdown"
+	print("thread shutdown")
 			
 def connect(ip, port):
 	# Create a TCP/IP socket
@@ -399,12 +403,12 @@ def connect(ip, port):
 	
 	# Connect the socket to the port where the server is listening
 	try:
-		print "connecting to", ip.strip(), port
+		print("connecting to", ip.strip(), port)
 		server_address = (ip.strip(), int(port))
 		theSocket.connect(server_address)
 		return theSocket
 	except:
-		print "failed to connect"
+		print("failed to connect")
 		return None
 		
 def disconnect(theSocket):
@@ -415,11 +419,11 @@ def keypressEvent(event):
 	x = event.char
 	if len(x) > 0:
 		x = ord(x)
-		#print "testing", x
+		#print("testing", x)
 		if x == 15: #ctr-O
 			None
 		else:
-			print "testing:", x
+			print("testing:", x)
 			
 class gui:
 	def __init__(self, ip="127.0.0.1", port="22368"):
@@ -479,12 +483,12 @@ class gui:
 	def connectAction(self):
 		self.theSocket = connect(self.ipTextBox.get(1.0,END), self.portTextBox.get(1.0,END))
 		if self.theSocket is not None:
-			print "connection passed"
+			print("connection passed")
 			self.connectButton['text'] = "Disconnect"
 			self.connectButton['command'] = self.disconnectAction
 			self.testButton['state'] = 'normal'
 		else:
-			print "not connected"
+			print("not connected")
 			
 	def disconnectAction(self):
 		disconnect(self.theSocket)
@@ -509,7 +513,7 @@ class gui:
 	def colorAction(self):
 		global startingColor
 		startingColor, colorString = askcolor(parent=self.master)
-		print startingColor, colorString
+		print(startingColor, colorString)
 	
 	def framerateAction(self, event):
 		global framerate

@@ -97,7 +97,6 @@ def getRainbow3(depth):
 	
 	return (R, G, B)
 	
-
 def getRainbow4(numPixels):
 	h = 0
 	v = 255
@@ -111,7 +110,7 @@ def getRainbow4(numPixels):
 		R, G, B = int(255 * r), int(255 * g), int(255 * b)
 		pixels.append((R, G, B))
 		
-	print pixels
+	print(pixels)
 		
 	return pixels
 
