@@ -10,6 +10,7 @@ import math
 from collections import deque
 import argparse
 import signal
+import cmd
 
 # local imports
 import colorUtils
@@ -25,6 +26,7 @@ framerate = 30
 mode = "screensaver"
 speed = 10
 screensaver_cycle = False
+
 
 def cos(x, offset=0, period=1, minn=0, maxx=1):
     """A cosine curve scaled to fit in a 0-1 range and 0-1 domain by default.
@@ -260,7 +262,7 @@ def rainbowMode(angle, numPixels):
 	updatedPixels = True
 	
 	return pixels, updatedPixels, angle
-	
+
 def testfunc(pixels, iterations, numPixels, shiftnum):
 	direction = "right"
 	if iterations == 0:
@@ -350,7 +352,6 @@ def run(theSocket):
 		current_time = time.time()
 		diff_time = current_time - last_time
 		if diff_time > modspeed: #speed modifier
-		
 			if mode == "fill":
 				pixels, updatedPixels, iterations = fillMode(pixels, iterations, numPixels, startingColor)
 					
@@ -563,7 +564,7 @@ class nongui:
 	
 		if self.theSocket is not None:
 			self.theSocket.close()
-			
+
 def selectColor(color):
 	pixel = (255, 255, 255)
 	
@@ -585,13 +586,313 @@ def selectColor(color):
 		pixel = (160,32,240)
 	elif color == "black":
 		pixel = (0,0,0)
+	else:
+		print('pixel color not available', color)
 
 	return pixel
 
 def signalCleanup(signum, frame):
 	global threadShutdown
 	threadShutdown = True
+
+
+class LightCycleCommandline(cmd.Cmd):
+	def __init__(self, lightcycle):
+		super().__init__()
+		self.lightcycle = lightcycle
+		self.prompt = '> '
+		self.intro = 'LightCycle: LED controller'
 	
+	def emptyline(self):
+		""" Do nothing when empty line is input """
+		pass
+		
+	def do_start(self, line):
+		self.lightcycle.start()
+		
+	def do_stop(self, line):
+		self.lightcycle.stop()
+		
+	def do_exit(self, line):
+		self.lightcycle.stop()
+		return True
+		
+	def do_mode(self, line):
+		self.lightcycle.switchMode(line.strip())
+		
+	def do_speed(self, line):
+		self.lightcycle.speed = int(line.strip())
+		
+	def do_color(self, line):
+		self.lightcycle.color = selectColor(line.strip())
+		
+	def do_direction(self, line):
+		self.lightcycle.switchDirection(line.strip())
+		
+	def complete_mode(self, text, line, start_index, end_index):
+		# TODO
+		pass
+
+	
+class LightCycle:
+	def __init__(self):
+		self.interface = LightCycleCommandline(self)
+		self.ip = '127.0.0.1'
+		self.port = 22369
+		self.sock = None
+		self.lightCycleThread = None
+		self.stopRun = False
+		self.stopMode = False
+		self.numPixels = 0
+		self.numChannels = 0
+		self.mode = 'none'
+		self.modes = ['none', 'test', 'flicker', 'flickerOn', 'rainbow', 'shift', 'rainbowShift']
+		#["fill","rainbow","fade","rshift","lshift","rainbow_rshift","rainbow_lshift"]
+		self.refreshRate = 60
+		self.speed = 5
+		self.color = (255,255,255)
+		self.direction = 'right'
+		
+	def interactive_prompt(self):
+		""" Start the interactive command prompt """
+		self.interactive = True
+
+		do_quit = False
+		while do_quit is not True:
+			try:
+				self.interface.cmdloop()
+				do_quit = True
+			except KeyboardInterrupt:
+				sys.stdout.write('\n')
+	
+	def start(self):
+		self.stopRun = False
+		self.stopMode = False
+		self.connect()
+		self.lightCycleThread = threading.Thread(target=self.run)
+		self.lightCycleThread.start()
+		
+	def stop(self):
+		self.stopMode = True
+		self.stopRun = True
+		if self.lightCycleThread is not None:
+			self.lightCycleThread.join()
+			self.lightCycleThread = None
+		self.disconnect()
+	
+	def disconnect(self):
+		if self.sock is not None:
+			self.sock.close()
+	
+	def connect(self):
+		# Create a TCP/IP socket
+		self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		
+		# Connect the socket to the port where the server is listening
+		try:
+			print("connecting to", self.ip, self.port)
+			server_address = (self.ip, self.port)
+			self.sock.connect(server_address)
+		except:
+			print("failed to connect")
+			self.sock = None
+	
+	def opcSend(self, pixels):
+		""" Turn list of pixels into OPC format and send to server """
+		comm = 0
+		for c in range(self.numChannels):
+			chan = c
+			length = len(pixels)*3
+				
+			message = struct.pack('B', chan)
+			message += struct.pack('B', comm)
+			message += struct.pack('!H', length)
+			for pix in pixels:
+				message += struct.pack('B', pix[0])
+				message += struct.pack('B', pix[1])
+				message += struct.pack('B', pix[2])
+		
+			try:
+				self.sock.sendall(message)
+			except:
+				print("Error in sending")
+				break
+	
+	def switchMode(self, mode):
+		if mode in self.modes:
+			print('new mode selected')
+			self.mode = mode
+			self.stopMode = True
+		else:
+			print('bad mode:', mode)
+	
+	def switchDirection(self, direction):
+		if direction == 'right' or direction == 'left':
+			self.direction = direction
+		else:
+			print('bad direction given. need "right" or "left"')
+	
+	def run(self):
+		modeThread = None
+		
+		while self.stopRun is False:
+			if self.mode != 'none':
+				self.stopMode = False
+				if self.mode == 'test':
+					modeThread = threading.Thread(target=self.testMode)
+				elif self.mode == 'flicker':
+					modeThread = threading.Thread(target=self.flickerMode)
+				elif self.mode == 'flickerOn':
+					modeThread = threading.Thread(target=self.flickerOnMode)
+				elif self.mode == 'rainbow':
+					modeThread = threading.Thread(target=self.rainbowMode)
+				elif self.mode == 'shift':
+					modeThread = threading.Thread(target=self.shiftMode)
+				elif self.mode == 'rainbowShift':
+					modeThread = threading.Thread(target=self.rainbowshiftMode)
+				else:
+					print('not a supported mode', self.mode)
+			else:
+				pass
+	
+			if modeThread is not None:
+				self.mode = 'none'
+				self.stopMode = False
+				modeThread.start()
+				modeThread.join()
+				modeThread = None
+				self.stopMode = True
+			time.sleep(1)
+	
+	###################
+	# mode functions
+	###################
+	
+	def testMode(self):
+		while self.stopMode is False:
+			pixels = []
+			for x in range(self.numPixels):
+				pixels.append((random.randint(0,255),random.randint(0,255),random.randint(0,255)))
+			self.opcSend(pixels)
+			time.sleep((1/self.refreshRate) * self.speed)
+		
+	def flickerMode(self):
+		on_pixels = []
+		half_pixels = []
+		off_pixels = []
+		for x in range(self.numPixels):
+			on_pixels.append((255,255,255))
+			half_pixels.append((127,127,127))
+			off_pixels.append((0,0,0))
+			
+		self.opcSend(off_pixels)
+
+		total = 1
+		flicker_time = 0.1
+		while self.stopMode is False:
+			self.opcSend(on_pixels)
+			time.sleep(flicker_time)
+			self.opcSend(half_pixels)
+			time.sleep(flicker_time)
+			self.opcSend(off_pixels)
+			time.sleep(2 * random.uniform(0,0.5))
+		self.opcSend(on_pixels)
+		
+	def flickerOnMode(self):
+		on_pixels = []
+		half_pixels = []
+		off_pixels = []
+		for x in range(self.numPixels):
+			on_pixels.append((255,255,255))
+			half_pixels.append((127,127,127))
+			off_pixels.append((0,0,0))
+			
+		self.opcSend(off_pixels)
+
+		flicker_count = 5
+		total = 1
+		flicker_time = 0.1
+		while flicker_count > 0:
+			self.opcSend(on_pixels)
+			time.sleep(flicker_time)
+			self.opcSend(half_pixels)
+			time.sleep(flicker_time)
+			self.opcSend(off_pixels)
+			time.sleep(flicker_count * random.uniform(0,0.5))
+			flicker_count = flicker_count -1
+		self.opcSend(on_pixels)
+
+	def rainbowMode(self):
+		angle = 0		
+		while self.stopMode is False:
+			# get color from rainbow at current "angle"
+			pixel = colorUtils.getRainbow2(angle)
+			
+			# create array of pixels of same color
+			pixels = []
+			for idx in range(self.numPixels):
+				pixels.append(pixel)
+			
+			# send pixels and sleep
+			self.opcSend(pixels)
+			time.sleep((1/self.refreshRate) * self.speed)
+			
+			# go to next angle in raindbow sequence
+			angle = angle + 1
+			if angle > 359:
+				angle = 0
+				
+	def shiftMode(self):
+		# make shift frame
+		shiftnum = 0
+		pixels = shiftFrameCreate(self.numPixels, self.color)
+
+		# if left shift then reverse shift frame
+		if self.direction == 'left':
+			pixels = pixels[::-1]
+			
+		while self.stopMode is False:	
+
+			if self.direction == 'right':
+				pixels = shift(pixels, 1)
+			else:
+				pixels = shift(pixels, -1)
+				
+			shiftnum = shiftnum +1
+			if shiftnum > self.numPixels:
+				shiftnum = 0
+			
+			# send pixels and sleep
+			self.opcSend(pixels)
+			time.sleep((1/self.refreshRate) * self.speed)
+			
+	def rainbowshiftMode(self):
+		shiftnum = 0
+		angle = 0
+		while self.stopMode is False:
+			# pick color from rainbow sequence
+			pixel = colorUtils.getRainbow(angle)
+			angle = angle + 1
+			if angle > 359:
+				angle = 0
+
+			# create shift frame
+			pixels = shiftFrameCreate(self.numPixels, pixel)
+			if self.direction == 'left':
+				tempNum = shiftnum - (shiftnum*2)
+			else:
+				tempNum = shiftnum
+			pixels = shift(pixels, tempNum)
+			
+			shiftnum = shiftnum + 1
+			if shiftnum > self.numPixels:
+				shiftnum = 0
+				
+			# send pixels and sleep
+			self.opcSend(pixels)
+			time.sleep((1/self.refreshRate) * self.speed)
+
+
 def main():
 	global startingColor
 	global framerate
@@ -608,12 +909,23 @@ def main():
 	parser.add_argument("-i", "--ip", default="127.0.0.1", help="ip address of OPC server")
 	parser.add_argument("-p", "--port", type=int, default=22368, help="port number for OPC server")
 	parser.add_argument("-s", "--speed", type=int, default=10, help="animation speed setting")
+	parser.add_argument('-t', '--test', action='store_true', help='enable test mode')
 	
 	args = parser.parse_args()
+	
+	lightcycle = LightCycle()
+	lightcycle.ip = args.ip.strip()
+	lightcycle.port = int(args.port)
+	lightcycle.numPixels = 64
+	lightcycle.numChannels = 8
 	
 	startingColor = selectColor(args.color)
 	mode = args.mode
 	speed = args.speed
+	
+	if args.test is True:
+		lightcycle.interactive_prompt()
+		return
 	
 	if args.gui is True:
 		program = gui(ip=args.ip, port=str(args.port))
