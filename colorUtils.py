@@ -132,3 +132,29 @@ def gamma(color, gamma):
     """Apply a gamma curve to the color.  The color values should be in the range 0-1."""
     r, g, b = color
     return (max(r, 0) ** gamma, max(g, 0) ** gamma, max(b, 0) ** gamma)
+	
+def selectColor(color):
+	pixel = (255, 255, 255)
+	
+	color = color.lower()
+	
+	if color == "red":
+		pixel = (255, 0, 0)
+	elif color == "green":
+		pixel = (0, 255, 0)
+	elif color == "blue":
+		pixel = (0, 0, 255)
+	elif color == "white":
+		pixel = (255, 255, 255)
+	elif color == "orange":
+		pixel = (255,165,0)
+	elif color == "yellow":
+		pixel = (255, 255, 0)
+	elif color == "purple":
+		pixel = (160,32,240)
+	elif color == "black":
+		pixel = (0,0,0)
+	else:
+		print('pixel color not available', color)
+
+	return pixel
