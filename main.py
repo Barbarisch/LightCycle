@@ -38,84 +38,36 @@ def cos(x, offset=0, period=1, minn=0, maxx=1):
     value = math.cos((x/period - offset) * math.pi * 2) / 2 + 0.5
     return value*(maxx-minn) + minn
 	
-def fade(pixels, start_time):
-	t = time.time() - start_time
+def fade(pixels, offset):
+	#t = time.time() - start_time
 	newPixels = []
 
 	for idx in range(len(pixels)):
-		r = cos(.1, offset=t/8, period=1) * pixels[idx][0]
-		g = cos(.1, offset=t/8, period=1) * pixels[idx][1]
-		b = cos(.1, offset=t/8, period=1) * pixels[idx][2]
+		r = cos(.1, offset=offset/8, period=1) * pixels[idx][0]
+		g = cos(.1, offset=offset/8, period=1) * pixels[idx][1]
+		b = cos(.1, offset=offset/8, period=1) * pixels[idx][2]
 		
-		pixel = (r, g, b)
+		pixel = (int(r), int(g), int(b))
 		newPixels.append(pixel)
 
+	print('testing', offset, pixels[0])
 	return newPixels
-	
-def rainbowCycle(numPixels, angle):
-	#pixel = colorUtils.getRainbow(angle)#(r, g, b)
-	pixel = colorUtils.getRainbow2(angle)#(r, g, b)
-	
-	newPixels = []
-	for idx in range(int(numPixels)):
-		newPixels.append(pixel)
-	
-	newAngle = angle + 1
-	if newAngle > 359:
-		newAngle = 0
-	
-	return newPixels, newAngle
 	
 def shift(pixels, num):
 	tempPixels = deque(pixels)
 	tempPixels.rotate(num)
 	return list(tempPixels)
 	
-def fillup(pixels):
-	tempPixels = deque(pixels)
-	tempPixels.rotate(1)
-	tempPixels = list(tempPixels)
-	tempPixels[0] = tempPixels[1]
-	return tempPixels
-	
-def testShift(pixels, offset):
-	newPixels = []
-	numPixels = len(pixels) * 1.0
-	for idx in range(int(numPixels)):
-		val = idx/numPixels
-		if val < .5:
-			r = 0
-			g = 0
-			b = 0
-		else:
-			r = round(cos(val, offset=offset/numPixels, period=1) * pixels[idx][0])
-			g = round(cos(val, offset=offset/numPixels, period=1) * pixels[idx][1])
-			b = round(cos(val, offset=offset/numPixels, period=1) * pixels[idx][2])
-	
-		#pixel = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
-		pixel = (r, g, b)
-		newPixels.append(pixel)
-		
-	return newPixels
-
-def defaultFrameCreate(numPixels, startPixel):
+def defaultFrameCreate(numPixels, pixelColor):
 	pixels = []
-	for idx in range(int(numPixels)):
-		pixels.append(startPixel)
-		
-	return pixels
-	
-def fillupFrameCreate(numPixels, startPixel):
-	pixels = []
-	pixels.append(startPixel)
-	for idx in range(int(numPixels)-1):
-		pixels.append((0,0,0))
+	for idx in range(numPixels):
+		pixels.append(pixelColor)
 		
 	return pixels
 	
 def shiftFrameCreate(numPixels, startPixel):
 	pixels = []
-	for idx in range(int(numPixels)):
+	for idx in range(numPixels):
 		val = idx/numPixels
 		if val < .5:
 			val = 0.5
@@ -124,39 +76,16 @@ def shiftFrameCreate(numPixels, startPixel):
 		g = round(cos(val, offset=0, period=1) * startPixel[1])
 		b = round(cos(val, offset=0, period=1) * startPixel[2])
 	
-		#pixel = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
 		pixel = (r, g, b)
 		pixels.append(pixel)
 		
 	return pixels
 
-def fillMode(pixels, iterations, numPixels, startingColor):
-	if iterations == 0: #first iteration
-		newPixels = fillupFrameCreate(numPixels, startingColor)
-		iterations = iterations + 1
-		updatedPixels = True
-	elif iterations > numPixels: #last iteration
-		newPixels = pixels
-		updatedPixels = False
-	else:
-		newPixels = fillup(pixels)
-		updatedPixels = True
-		iterations = iterations + 1
-		
-	return newPixels, updatedPixels, iterations
-
-def fadeMode(origPixels, iterations, numPixels, startingColor, start_time):
-	if iterations == 0: #first iteration
-		initPixels = defaultFrameCreate(numPixels, startingColor)
-		pixels = origPixels
-		iterations = iterations + 1
-		updatedPixels = True
-	else:
-		initPixels = origPixels
-		pixels = fade(initPixels, start_time)
-		updatedPixels = True
-		
-	return initPixels, pixels, updatedPixels, iterations
+def changeBrightness(pixels, modifier):
+	newPixels = []
+	for pixel in pixels:
+		newPixels.append((int(pixel[0]*modifier), int(pixel[1]*modifier), int(pixel[2]*modifier)))
+	return newPixels
 
 				
 class gui:
@@ -295,6 +224,15 @@ class LightCycleCommandline(cmd.Cmd):
 	def do_direction(self, line):
 		self.lightcycle.switchDirection(line.strip())
 		
+	def do_brightness(self, line):
+		self.lightcycle.brightness = int(line.strip())
+		
+	def do_on(self, line):
+		self.lightcycle.on()
+		
+	def do_off(self, line):
+		self.lightcycle.off()
+		
 	def complete_mode(self, text, line, start_index, end_index):
 		# TODO
 		pass
@@ -312,12 +250,12 @@ class LightCycle:
 		self.numPixels = 0
 		self.numChannels = 0
 		self.mode = 'none'
-		self.modes = ['none', 'test', 'flicker', 'flickerOn', 'rainbow', 'shift', 'rainbowShift']
-		#["fill","rainbow","fade","rshift","lshift","rainbow_rshift","rainbow_lshift"]
+		self.modes = ['none', 'test', 'flicker', 'flickerOn', 'rainbow', 'shift', 'rainbowShift', 'fill', 'fade']
 		self.refreshRate = 60
 		self.speed = 5
 		self.color = (255,255,255)
 		self.direction = 'right'
+		self.brightness = 50
 		
 	def interactive_prompt(self):
 		""" Start the interactive command prompt """
@@ -366,6 +304,7 @@ class LightCycle:
 	
 	def opcSend(self, pixels):
 		""" Turn list of pixels into OPC format and send to server """
+		pixels = changeBrightness(pixels, self.brightness/100)
 		comm = 0
 		for c in range(self.numChannels):
 			chan = c
@@ -424,6 +363,10 @@ class LightCycle:
 					modeThread = threading.Thread(target=self.shiftMode)
 				elif self.mode == 'rainbowShift':
 					modeThread = threading.Thread(target=self.rainbowshiftMode)
+				elif self.mode == 'fill':
+					modeThread = threading.Thread(target=self.fillMode)
+				elif self.mode == 'fade':
+					modeThread = threading.Thread(target=self.fadeMode)
 				else:
 					print('not a supported mode', self.mode)
 			else:
@@ -439,16 +382,21 @@ class LightCycle:
 			time.sleep(1)
 			
 	def off(self):
-		pixels = []
-		for x in range(self.numPixels):
-			pixels.append((0,0,0))
+		pixels = defaultFrameCreate(self.numPixels, (0,0,0))
 		self.opcSend(pixels)
-			
+	
+	def on(self):
+		pixels = defaultFrameCreate(self.numPixels, self.color)
+		#pixels = changeBrightness(pixels, self.brightness)
+		self.opcSend(pixels)
+		
+	def update(self):
+		pass
 	
 	###################
 	# mode functions
 	###################
-	
+		
 	def testMode(self):
 		while self.stopMode is False:
 			pixels = []
@@ -458,13 +406,8 @@ class LightCycle:
 			time.sleep((1/self.refreshRate) * self.speed)
 		
 	def flickerMode(self):
-		on_pixels = []
-		half_pixels = []
-		off_pixels = []
-		for x in range(self.numPixels):
-			on_pixels.append(self.color)
-			off_pixels.append((0,0,0))
-			
+		on_pixels = defaultFrameCreate(self.numPixels, self.color)
+		off_pixels = defaultFrameCreate(self.numPixels, (0,0,0))			
 		self.opcSend(off_pixels)
 
 		total = 1
@@ -477,13 +420,8 @@ class LightCycle:
 		self.opcSend(on_pixels)
 		
 	def flickerOnMode(self):
-		on_pixels = []
-		half_pixels = []
-		off_pixels = []
-		for x in range(self.numPixels):
-			on_pixels.append(self.color)
-			off_pixels.append((0,0,0))
-			
+		on_pixels = defaultFrameCreate(self.numPixels, self.color)
+		off_pixels = defaultFrameCreate(self.numPixels, (0,0,0))			
 		self.opcSend(off_pixels)
 
 		flicker_count = 3
@@ -504,9 +442,7 @@ class LightCycle:
 			pixel = colorUtils.getRainbow2(angle)
 			
 			# create array of pixels of same color
-			pixels = []
-			for idx in range(self.numPixels):
-				pixels.append(pixel)
+			pixels = defaultFrameCreate(self.numPixels, pixel)
 			
 			# send pixels and sleep
 			self.opcSend(pixels)
@@ -526,7 +462,7 @@ class LightCycle:
 		if self.direction == 'left':
 			pixels = pixels[::-1]
 			
-		while self.stopMode is False:	
+		while self.stopMode is False:
 
 			if self.direction == 'right':
 				pixels = shift(pixels, 1)
@@ -566,6 +502,48 @@ class LightCycle:
 			# send pixels and sleep
 			self.opcSend(pixels)
 			time.sleep((1/self.refreshRate) * self.speed)
+
+	def fillMode(self):
+		pixels = defaultFrameCreate(self.numPixels, (0,0,0))
+		pixels = []
+		for x in range(self.numPixels):
+			pixels.append((0,0,0))
+		
+		for idx in range(self.numPixels):
+			pixels[idx] = self.color
+			
+			# send pixels and sleep
+			self.opcSend(pixels)
+			time.sleep((1/self.refreshRate) * self.speed)
+			
+	def fadeMode(self):
+		pixels = defaultFrameCreate(self.numPixels, self.color)
+		start_time = time.time()
+		
+		max = 2.7
+		interval = .1
+		cur = 0
+		up = True
+		
+		while self.stopMode is False:
+			pixels = fade(pixels, cur)
+			
+			# send pixels and sleep
+			self.opcSend(pixels)
+			time.sleep((1/self.refreshRate) * self.speed)
+			
+			if pixels[0] == (0,0,0):
+				print('breaking')
+				break
+			
+			#if up is True:
+			#	cur = cur + interval
+			#	if cur > max:
+			#		up = False
+			#else:
+			#	cur = cur - interval
+			#	if cur < 0:
+			#		up = True
 
 
 def main():
