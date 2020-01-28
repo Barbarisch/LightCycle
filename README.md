@@ -34,6 +34,7 @@ The python script presents an interactive prompt (based off of Cmd.cmd python mo
       stop - disconnect and stop animation logic
       mode - change current animation mode. ex: mode rainbowShift
       exit - stop everything and close program
+      list - list available animation modes
       on - turn all LEDs on
       off - turn all LEDs off
       brightness - change brightness level (0 - 100, default is 50)

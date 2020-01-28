@@ -7,18 +7,12 @@ from threading import Thread
 import time
 import random
 import math
-from collections import deque
 import argparse
-import signal
 import cmd
+from collections import deque
 
 # local imports
 import colorUtils
-
-
-# settings specific to my desk project
-numPixels = 64.0
-numChannels = 8
 
 
 def cos(x, offset=0, period=1, minn=0, maxx=1):
@@ -33,7 +27,7 @@ def cos(x, offset=0, period=1, minn=0, maxx=1):
     return value*(maxx-minn) + minn
 	
 def fade(pixels, start_time):
-	""" given a set of pixels use cosine function to fade (in or out) """
+	""" Use cosine function to fade pixel list (in or out) """
 	t = time.time() - start_time
 	newPixels = []
 
@@ -51,6 +45,7 @@ def shift(pixels, num):
 	tempPixels = deque(pixels)
 	tempPixels.rotate(num)
 	return list(tempPixels)
+	
 	
 def defaultFrameCreate(numPixels, pixelColor):
 	pixels = []
@@ -113,7 +108,6 @@ class gui:
 		self.optionMenu = OptionMenu(self.master, var, *self.lightcycle.modes, command=self.modeAction)
 		self.optionMenu.pack()
 
-		#self.showbutton = Button(self.master, text='Show', command=lambda:show_values(self.brightnessSlider)).pack()
 		self.colorbutton = Button(self.master, text='Select Color', command=self.colorAction)
 		self.colorbutton.pack()
 
@@ -164,6 +158,23 @@ class LightCycleCommandline(cmd.Cmd):
 		self.lightcycle = lightcycle
 		self.prompt = '> '
 		self.intro = 'LightCycle: LED controller'
+		
+	def do_help(self, line):
+		usage = [
+		'  help - print this help message',
+		'  start - connect and start default animation logic',
+		'  stop - disconnect and stop animation logic',
+		'  mode - change current animation mode. ex: mode rainbowShift',
+		'  exit - stop everything and close program',
+		'  list - list available animation modes',
+		'  on - turn all LEDs on',
+		'  off - turn all LEDs off',
+		'  brightness - change brightness level (0 - 100, default is 50)',
+		'  speed - change speed of animations (1 is fastest, default is 5)',
+		'  direction - change direction of linear animations (left or right)', 
+		]
+		for line in usage:
+			print(line)
 	
 	def emptyline(self):
 		""" Do nothing when empty line is input """
@@ -179,6 +190,10 @@ class LightCycleCommandline(cmd.Cmd):
 		self.lightcycle.stop()
 		return True
 		
+	def do_list(self, line):
+		for mode in self.lightcycle.modes:
+			print(mode)
+		
 	def do_mode(self, line):
 		self.lightcycle.switchMode(line.strip())
 		
@@ -186,6 +201,7 @@ class LightCycleCommandline(cmd.Cmd):
 		self.lightcycle.speed = int(line.strip())
 		
 	def do_color(self, line):
+		''' Change base color of animations '''
 		self.lightcycle.color = colorUtils.selectColor(line.strip())
 		
 	def do_direction(self, line):
@@ -497,7 +513,6 @@ class LightCycle:
 def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("-g", "--gui", action='store_true', help="enable the GUI")
-	#parser.add_argument("-v", "--verbosity", type=int, choices=[0, 1, 2], help="increase output verbosity")
 	parser.add_argument("-i", "--ip", default="127.0.0.1", help="ip address of OPC server")
 	parser.add_argument("-p", "--port", type=int, default=7890, help="port number for OPC server")
 	
