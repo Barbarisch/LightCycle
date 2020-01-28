@@ -18,37 +18,24 @@ Anyone who wants to see how I am creating OPC protocol messages should look at t
 ## Usage
 
 Basic usage:
-  user@localhost# python3 main.py -i <IP to OPC server> -p <Port to OPC server>
   
-  > start
-  
-  > color red
-  
-  > mode test
-  
-  > mode flickerOn
-  
-  > exit
+    user@localhost:~/LightCycle$ python3 main.py -i <IP to OPC server> -p <Port to OPC server>
+    > start
+    > color red
+    > mode test
+    > mode flickerOn
+    > exit
   
 The python script presents an interactive prompt (based off of Cmd.cmd python module). This allows control functionality during execution. This means that from the prompt changes can be made to animimation modes, colors, brightness, etc on the fly.
 
-Help menu:
-  help - print this help message
-  
-  start - connect and start default animation logic
-  
-  stop - disconnect and stop animation logic
-  
-  mode - change current animation mode. ex: mode rainbowShift
- 
-  exit - stop everything and close program
-  
-  on - turn all LEDs on
- 
-  off - turn all LEDs off
-  
-  brightness - change brightness level (0 - 100, default is 50)
-  
-  speed - change speed of animations (1 is fastest, default is 5)
-  
-  direction - change direction of linear animations (left or right)
+    Help menu:
+      help - print this help message
+      start - connect and start default animation logic
+      stop - disconnect and stop animation logic
+      mode - change current animation mode. ex: mode rainbowShift
+      exit - stop everything and close program
+      on - turn all LEDs on
+      off - turn all LEDs off
+      brightness - change brightness level (0 - 100, default is 50)
+      speed - change speed of animations (1 is fastest, default is 5)
+      direction - change direction of linear animations (left or right)
