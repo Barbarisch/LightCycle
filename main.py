@@ -15,16 +15,10 @@ import cmd
 # local imports
 import colorUtils
 
+
 # settings specific to my desk project
 numPixels = 64.0
 numChannels = 8
-
-# other global variables
-threadShutdown = False
-framerate = 30
-mode = "screensaver"
-speed = 10
-screensaver_cycle = False
 
 
 def cos(x, offset=0, period=1, minn=0, maxx=1):
@@ -38,19 +32,19 @@ def cos(x, offset=0, period=1, minn=0, maxx=1):
     value = math.cos((x/period - offset) * math.pi * 2) / 2 + 0.5
     return value*(maxx-minn) + minn
 	
-def fade(pixels, offset):
-	#t = time.time() - start_time
+def fade(pixels, start_time):
+	""" given a set of pixels use cosine function to fade (in or out) """
+	t = time.time() - start_time
 	newPixels = []
 
 	for idx in range(len(pixels)):
-		r = cos(.1, offset=offset/8, period=1) * pixels[idx][0]
-		g = cos(.1, offset=offset/8, period=1) * pixels[idx][1]
-		b = cos(.1, offset=offset/8, period=1) * pixels[idx][2]
+		r = cos(.1, offset=t/8, period=1) * pixels[idx][0]
+		g = cos(.1, offset=t/8, period=1) * pixels[idx][1]
+		b = cos(.1, offset=t/8, period=1) * pixels[idx][2]
 		
 		pixel = (int(r), int(g), int(b))
 		newPixels.append(pixel)
 
-	print('testing', offset, pixels[0])
 	return newPixels
 	
 def shift(pixels, num):
@@ -89,9 +83,8 @@ def changeBrightness(pixels, modifier):
 
 				
 class gui:
-	def __init__(self, ip="127.0.0.1", port="22368"):
-		self.theSocket = None
-		self.theThread = None
+	def __init__(self, lightcycle):
+		self.lightcycle = lightcycle
 		
 		self.master = Tk()
 		self.master.title("LightCycle")
@@ -102,23 +95,22 @@ class gui:
 			pass
 		
 		self.menubar = Menu(self.master)
-
 		self.filemenu = Menu(self.menubar, tearoff=0)
-		self.filemenu.add_command(label="Open        Ctl-O")#, command=test)
-		self.filemenu.add_command(label="Connect     Ctl-N", command=self.connectAction)
+		#self.filemenu.add_command(label="Open        Ctl-O")#, command=test)
+		#self.filemenu.add_command(label="Connect     Ctl-N", command=self.startAction)
 		self.menubar.add_cascade(label="File", menu=self.filemenu)
 
-		#self.brightnessSlider = Scale(self.master, from_=0, to=100, length=200, tickinterval=10, orient=HORIZONTAL)
-		#self.brightnessSlider.set(50)
-		#self.brightnessSlider.pack()
+		self.brightnessSlider = Scale(self.master, from_=0, to=100, length=300, tickinterval=5, orient=HORIZONTAL, command=self.brightnessAction)
+		self.brightnessSlider.set(50)
+		self.brightnessSlider.pack()
 		
-		self.framerateSlider = Scale(self.master, from_=0, to=60, length=200, tickinterval=5, orient=HORIZONTAL, command=self.framerateAction)
-		self.framerateSlider.set(30)
-		self.framerateSlider.pack()
+		self.speedSlider = Scale(self.master, from_=1, to=10, length=200, tickinterval=1, orient=HORIZONTAL, command=self.speedAction)
+		self.speedSlider.set(30)
+		self.speedSlider.pack()
 		
 		var = StringVar(self.master)
-		var.set("1")
-		self.optionMenu = OptionMenu(self.master, var, "1","2","3","4","5","6","7","8")
+		var.set('none')
+		self.optionMenu = OptionMenu(self.master, var, *self.lightcycle.modes, command=self.modeAction)
 		self.optionMenu.pack()
 
 		#self.showbutton = Button(self.master, text='Show', command=lambda:show_values(self.brightnessSlider)).pack()
@@ -126,69 +118,44 @@ class gui:
 		self.colorbutton.pack()
 
 		self.ipTextBox = Text(self.master, height=1, width=15)
-		self.ipTextBox.insert(END, ip)
+		self.ipTextBox.insert(END, self.lightcycle.ip)
 		self.ipTextBox.pack()
 
 		self.portTextBox = Text(self.master, height=1, width=15)
-		self.portTextBox.insert(END, port)
+		self.portTextBox.insert(END, self.lightcycle.port)
 		self.portTextBox.pack()
 
-		self.connectButton = Button(self.master, text='Connect', command=self.connectAction)
-		self.connectButton.pack()
-		
-		self.testButton = Button(self.master, text='Test', command=self.runAction, state='disabled')
-		self.testButton.pack()
+		self.startButton = Button(self.master, text='Start', command=self.startAction)
+		self.startButton.pack()
+		self.stopButton = Button(self.master, text='Stop', command=self.stopAction, state='disabled')
+		self.stopButton.pack()
 
 		self.master.config(menu=self.menubar)
-
-		self.master.bind('<Key>', keypressEvent)
 		
-	def connectAction(self):
-		pass
-		#self.theSocket = connect(self.ipTextBox.get(1.0,END), self.portTextBox.get(1.0,END))
-		#if self.theSocket is not None:
-		#	print("connection passed")
-		#	self.connectButton['text'] = "Disconnect"
-		#	self.connectButton['command'] = self.disconnectAction
-		#	self.testButton['state'] = 'normal'
-		#else:
-		#	print("not connected")
+	def startAction(self):
+		self.lightcycle.start()
+		if self.lightcycle.sock is not None:
+			self.stopButton['state'] = 'normal'
 			
-	def disconnectAction(self):
-		pass
-		#disconnect(self.theSocket)
-		#self.connectButton['text'] = "Connect"
-		#self.connectButton['command'] = self.connectAction
-		#self.testButton['state'] = 'disabled'
+	def stopAction(self):
+		self.lightcycle.stop()
+		self.stopButton['state'] = 'disabled'
 		
-	def runAction(self):
-		pass
-		#global threadShutdown
+	def modeAction(self, value):
+		self.lightcycle.switchMode(value)
 		
-		#if self.testButton['text'] == "Test":
-		#	threadShutdown = False
-		#	self.theThread = Thread(target=run, args=(self.theSocket,))
-		#	self.theThread.start()
-		#	self.testButton['text'] = "Stop"
-		#else:
-		#	if self.theThread is not None:
-		#		threadShutdown = True
-		#		self.theThread.join()
-		#	self.testButton['text'] = "Test"
+	def brightnessAction(self, event):
+		self.lightcycle.brightness = self.brightnessSlider.get()
 	
 	def colorAction(self):
-		pass
-		#global startingColor
-		#startingColor, colorString = askcolor(parent=self.master)
-		#print(startingColor, colorString)
+		color, colorString = askcolor(parent=self.master)
+		self.lightcycle.color = color
 	
-	def framerateAction(self, event):
-		pass
-		#global framerate
-		#framerate = self.framerateSlider.get()
+	def speedAction(self, event):
+		self.lightcycle.speed = self.speedSlider.get()
 	
 	def cleanup(self):
-		pass
+		self.lightcycle.stop()
 
 
 class LightCycleCommandline(cmd.Cmd):
@@ -387,7 +354,6 @@ class LightCycle:
 	
 	def on(self):
 		pixels = defaultFrameCreate(self.numPixels, self.color)
-		#pixels = changeBrightness(pixels, self.brightness)
 		self.opcSend(pixels)
 		
 	def update(self):
@@ -517,61 +483,38 @@ class LightCycle:
 			time.sleep((1/self.refreshRate) * self.speed)
 			
 	def fadeMode(self):
-		pixels = defaultFrameCreate(self.numPixels, self.color)
+		startPixels = defaultFrameCreate(self.numPixels, self.color)
 		start_time = time.time()
 		
-		max = 2.7
-		interval = .1
-		cur = 0
-		up = True
-		
 		while self.stopMode is False:
-			pixels = fade(pixels, cur)
+			pixels = fade(startPixels, start_time)
 			
 			# send pixels and sleep
 			self.opcSend(pixels)
 			time.sleep((1/self.refreshRate) * self.speed)
-			
-			if pixels[0] == (0,0,0):
-				print('breaking')
-				break
-			
-			#if up is True:
-			#	cur = cur + interval
-			#	if cur > max:
-			#		up = False
-			#else:
-			#	cur = cur - interval
-			#	if cur < 0:
-			#		up = True
 
 
 def main():
-	global program
-
 	parser = argparse.ArgumentParser()
 	parser.add_argument("-g", "--gui", action='store_true', help="enable the GUI")
-	parser.add_argument("-v", "--verbosity", type=int, choices=[0, 1, 2], help="increase output verbosity")
+	#parser.add_argument("-v", "--verbosity", type=int, choices=[0, 1, 2], help="increase output verbosity")
 	parser.add_argument("-i", "--ip", default="127.0.0.1", help="ip address of OPC server")
 	parser.add_argument("-p", "--port", type=int, default=7890, help="port number for OPC server")
-	parser.add_argument('-t', '--test', action='store_true', help='enable test mode')
 	
 	args = parser.parse_args()
 	
 	lightcycle = LightCycle()
 	lightcycle.ip = args.ip.strip()
 	lightcycle.port = int(args.port)
-	lightcycle.numPixels = 64
-	lightcycle.numChannels = 8
-	
-	if args.test is True:
-		lightcycle.interactive_prompt()
-		return
+	lightcycle.numPixels = 64 # pixels per channel..change this if your setup is different
+	lightcycle.numChannels = 8 # fadecandy supports up to 8 channels
 	
 	if args.gui is True:
-		program = gui(ip=args.ip, port=str(args.port))
+		program = gui(lightcycle)
 		mainloop()
 		program.cleanup()
+	else:
+		lightcycle.interactive_prompt()
 
 if __name__ == "__main__":
 	main()
